@@ -27,8 +27,6 @@ var procs *int = flag.Int("p", 2, "GOMAXPROCS. Defaults to 2")
 var check = flag.Bool("check", false, "Check that every expected reply was received exactly once.")
 var eps *int = flag.Int("eps", 0, "Send eps more messages per round than the client will wait for (to discount stragglers). Defaults to 0.")
 var conflicts *int = flag.Int("c", -1, "Percentage of conflicts. Defaults to 0%")
-var s = flag.Float64("s", 2, "Zipfian s parameter")
-var v = flag.Float64("v", 1, "Zipfian v parameter")
 
 var N int
 
@@ -41,9 +39,6 @@ func main() {
 	flag.Parse()
 
 	runtime.GOMAXPROCS(*procs)
-
-	randObj := rand.New(rand.NewSource(42))
-	zipf := rand.NewZipf(randObj, *s, *v, uint64(*reqsNb / *rounds + *eps))
 
 	if *conflicts > 100 {
 		log.Fatalf("Conflicts percentage must be between 0 and 100.\n")
@@ -66,33 +61,12 @@ func main() {
 	writers := make([]*bufio.Writer, N)
 
 	rarray = make([]int, *reqsNb / *rounds + *eps)
-	karray := make([]int64, *reqsNb / *rounds + *eps)
-	put := make([]bool, *reqsNb / *rounds + *eps)
 	perReplicaCount := make([]int, N)
-	test := make([]int, *reqsNb / *rounds + *eps)
 	for i := 0; i < len(rarray); i++ {
 		r := rand.Intn(N)
 		rarray[i] = r
 		if i < *reqsNb / *rounds {
 			perReplicaCount[r]++
-		}
-
-		if *conflicts >= 0 {
-			r = rand.Intn(100)
-			if r < *conflicts {
-				karray[i] = 42
-			} else {
-				karray[i] = int64(43 + i)
-			}
-			r = rand.Intn(100)
-			if r < *writes {
-				put[i] = true
-			} else {
-				put[i] = false
-			}
-		} else {
-			karray[i] = int64(zipf.Uint64())
-			test[karray[i]]++
 		}
 	}
 	if *conflicts >= 0 {
@@ -154,14 +128,8 @@ func main() {
 		for i := 0; i < n+*eps; i++ {
 			dlog.Printf("Sending proposal %d\n", id)
 			args.CommandId = id
-			if put[i] {
-				args.Command.Op = state.PUT
-			} else {
-				args.Command.Op = state.GET
-			}
-			args.Command.K = state.Key(karray[i])
-			args.Command.V = state.Value(i)
-			//args.Timestamp = time.Now().UnixNano()
+			args.Command.Op = state.INCREMENT
+			args.Timestamp = time.Now().UnixNano()
 			if !*fast {
 				if *noLeader {
 					leader = rarray[i]

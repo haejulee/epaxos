@@ -16,6 +16,7 @@ const (
 	DELETE
 	RLOCK
 	WLOCK
+	INCREMENT
 )
 
 type Value int64
@@ -31,9 +32,8 @@ type Command struct {
 }
 
 type State struct {
-	mutex *sync.Mutex
-	Store map[Key]Value
-	//DB *leveldb.DB
+	mutex   *sync.Mutex
+	Counter int
 }
 
 func InitState() *State {
@@ -47,7 +47,7 @@ func InitState() *State {
 	   return &State{d}
 	*/
 
-	return &State{new(sync.Mutex), make(map[Key]Value)}
+	return &State{new(sync.Mutex), 0}
 }
 
 func Conflict(gamma *Command, delta *Command) bool {
@@ -79,25 +79,10 @@ func (c *Command) Execute(st *State) Value {
 
 	//var key, value [8]byte
 
-	//    st.mutex.Lock()
-	//    defer st.mutex.Unlock()
+	st.mutex.Lock()
+	defer st.mutex.Unlock()
 
-	switch c.Op {
-	case PUT:
-		/*
-		   binary.LittleEndian.PutUint64(key[:], uint64(c.K))
-		   binary.LittleEndian.PutUint64(value[:], uint64(c.V))
-		   st.DB.Set(key[:], value[:], nil)
-		*/
-
-		st.Store[c.K] = c.V
-		return c.V
-
-	case GET:
-		if val, present := st.Store[c.K]; present {
-			return val
-		}
-	}
+	st.Counter += 1
 
 	return NIL
 }
