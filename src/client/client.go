@@ -52,7 +52,7 @@ func main() {
 		//fmt.Println(test[0:100])
 	}
 
-	var done chan bool
+	done := make(chan bool)
 	for i := 0; i < *threads; i++ {
 		go clientThread(i, done)
 	}
