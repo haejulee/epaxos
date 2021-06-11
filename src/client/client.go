@@ -27,6 +27,7 @@ var procs *int = flag.Int("p", 2, "GOMAXPROCS. Defaults to 2")
 var check = flag.Bool("check", false, "Check that every expected reply was received exactly once.")
 var eps *int = flag.Int("eps", 0, "Send eps more messages per round than the client will wait for (to discount stragglers). Defaults to 0.")
 var conflicts *int = flag.Int("c", -1, "Percentage of conflicts. Defaults to 0%")
+var threads *int = flag.Int("nthreads", 1, "Number of client threads to run")
 
 var N int
 
@@ -44,6 +45,23 @@ func main() {
 		log.Fatalf("Conflicts percentage must be between 0 and 100.\n")
 	}
 
+	if *conflicts >= 0 {
+		fmt.Println("Uniform distribution")
+	} else {
+		fmt.Println("Zipfian distribution:")
+		//fmt.Println(test[0:100])
+	}
+
+	var done chan bool
+	for i := 0; i < *threads; i++ {
+		go clientThread(i, done)
+	}
+	for i := 0; i < *threads; i++ {
+		<-done
+	}
+}
+
+func clientThread(threadID int, threadDone chan bool) {
 	master, err := rpc.DialHTTP("tcp", fmt.Sprintf("%s:%d", *masterAddr, *masterPort))
 	if err != nil {
 		log.Fatalf("Error connecting to master\n")
@@ -68,12 +86,6 @@ func main() {
 		if i < *reqsNb / *rounds {
 			perReplicaCount[r]++
 		}
-	}
-	if *conflicts >= 0 {
-		fmt.Println("Uniform distribution")
-	} else {
-		fmt.Println("Zipfian distribution:")
-		//fmt.Println(test[0:100])
 	}
 
 	for i := 0; i < N; i++ {
@@ -168,7 +180,7 @@ func main() {
 
 		after := time.Now()
 
-		fmt.Printf("Round took %v\n", after.Sub(before))
+		fmt.Printf("#req %d %d %v\n", threadID, j, after.Sub(before)) // #req <thread-ID> <round-number> <time>
 
 		if *check {
 			for j := 0; j < n; j++ {
@@ -206,6 +218,7 @@ func main() {
 		}
 	}
 	master.Close()
+	threadDone <- true
 }
 
 func waitReplies(readers []*bufio.Reader, leader int, n int, done chan bool) {
