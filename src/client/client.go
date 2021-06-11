@@ -13,6 +13,7 @@ import (
 	"net/rpc"
 	"runtime"
 	"state"
+	"sync"
 	"time"
 )
 
@@ -52,16 +53,22 @@ func main() {
 		//fmt.Println(test[0:100])
 	}
 
-	done := make(chan bool)
+	before_total := time.Now()
+
+	var wg sync.WaitGroup
 	for i := 0; i < *threads; i++ {
-		go clientThread(i, done)
+		wg.Add(1)
+		go clientThread(i, &wg)
 	}
-	for i := 0; i < *threads; i++ {
-		<-done
-	}
+	wg.Wait()
+
+	after_total := time.Now()
+	fmt.Printf("Test took %v\n", after_total.Sub(before_total))
 }
 
-func clientThread(threadID int, threadDone chan bool) {
+func clientThread(threadID int, wg *sync.WaitGroup) {
+	defer wg.Done()
+
 	master, err := rpc.DialHTTP("tcp", fmt.Sprintf("%s:%d", *masterAddr, *masterPort))
 	if err != nil {
 		log.Fatalf("Error connecting to master\n")
@@ -113,8 +120,6 @@ func clientThread(threadID int, threadDone chan bool) {
 	var id int32 = 0
 	done := make(chan bool, N)
 	args := genericsmrproto.Propose{id, state.Command{state.PUT, 0, 0}, 0}
-
-	before_total := time.Now()
 
 	for j := 0; j < *rounds; j++ {
 
@@ -202,15 +207,12 @@ func clientThread(threadID int, threadDone chan bool) {
 		}
 	}
 
-	after_total := time.Now()
-	fmt.Printf("Test took %v\n", after_total.Sub(before_total))
-
 	s := 0
 	for _, succ := range successful {
 		s += succ
 	}
 
-	fmt.Printf("Successful: %d\n", s)
+	// fmt.Printf("Successful: %d\n", s)
 
 	for _, client := range servers {
 		if client != nil {
@@ -218,7 +220,6 @@ func clientThread(threadID int, threadDone chan bool) {
 		}
 	}
 	master.Close()
-	threadDone <- true
 }
 
 func waitReplies(readers []*bufio.Reader, leader int, n int, done chan bool) {
