@@ -185,7 +185,7 @@ func clientThread(threadID int, wg *sync.WaitGroup) {
 
 		after := time.Now()
 
-		fmt.Printf("#req %d %d %v\n", threadID, j, after.Sub(before)) // #req <thread-ID> <round-number> <time>
+		fmt.Printf("#req %d %d %v %s\n", threadID, j, after.Sub(before), time.Now().Format("15:04:05.000")) // #req <thread-ID> <round-number> <time>
 
 		if *check {
 			for j := 0; j < n; j++ {
